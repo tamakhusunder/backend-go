@@ -4,7 +4,8 @@ import (
 	// db "backend-go/database"
 	"backend-go/config"
 	db "backend-go/database"
-	registerhandler "backend-go/handlers"
+	handlers "backend-go/handlers"
+	middleware "backend-go/middlewares"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,7 +23,15 @@ func main() {
 	db.InitDB() // Initialize MongoDB connection
 
 	r := mux.NewRouter()
-	r.HandleFunc("/register", registerhandler.RegisterHandler).Methods("POST")
+	//user
+	r.HandleFunc("/api/register", handlers.RegisterHandler).Methods("POST")
+	r.HandleFunc("/api/login", handlers.LoginHandler).Methods("POST")
+
+	//TODO
+	r.HandleFunc("/logout", handlers.LogoutHandler).Methods("POST")
+
+	r.Handle("/api/profile", middleware.AuthMiddleware(http.HandlerFunc(handlers.ProfileHandler))).Methods("GET")
+	r.HandleFunc("/refresh", handlers.RefreshHandler)
 
 	log.Println("🚀 Server is running on port 8080")
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", PORT), r))
