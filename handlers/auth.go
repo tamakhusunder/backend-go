@@ -16,7 +16,7 @@ func RefreshHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Validate refresh token
-	claims, err := utils.VerifyJWTToken(cookie.Value)
+	claims, err := utils.VerifyAndParseJWTToken(cookie.Value)
 	if err != nil {
 		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
 		return

@@ -10,14 +10,11 @@ import (
 	"net/http"
 	"strings"
 
+	contextkeys "backend-go/contextKeys"
 	"backend-go/utils"
 )
 
 // AuthMiddleware checks for a valid JWT token in the request header
-
-type contextKey string
-
-const UserContextKey = contextKey("user")
 
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -28,7 +25,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		claims, err := utils.VerifyJWTToken(token)
+		claims, err := utils.VerifyAndParseJWTToken(token)
 
 		if err != nil {
 			fmt.Println("Token from header:", claims, err)
@@ -39,7 +36,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		// TODO: Extract user from the DB using claims.UserID if needed
 
 		// Attach user info into context
-		ctx := context.WithValue(r.Context(), UserContextKey, claims)
+		ctx := context.WithValue(r.Context(), contextkeys.UserContextKey, claims)
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

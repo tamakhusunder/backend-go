@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	middleware "backend-go/middlewares"
+	contextkeys "backend-go/contextKeys"
 	"backend-go/utils"
 	"encoding/json"
 	"fmt"
@@ -10,7 +10,7 @@ import (
 
 func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	//TODO: Get user info from context set by AuthMiddleware
-	claims, ok := r.Context().Value(middleware.UserContextKey).(*utils.Claims)
+	claims, ok := r.Context().Value(contextkeys.UserContextKey).(*utils.Claims)
 	fmt.Printf("Claims in profile handler: %+v, ok: %v\n", claims, ok)
 	if !ok {
 		http.Error(w, "Could not get user info", http.StatusUnauthorized)
