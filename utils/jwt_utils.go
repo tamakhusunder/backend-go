@@ -27,12 +27,7 @@ func generateJWTToken(userID string, email string, timeDuration time.Duration) (
 			Issuer:    "backend-go",
 		},
 	}
-	// token := jwt.NewWithClaims(
-	// 	jwt.SigningMethodHS256,
-	// 	jwt.MapClaims{
-	// 		"user_id": userID,
-	// 		"exp":     time.Now().Add(timeDuration).Unix(),
-	// 	})
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	tokenString, err := token.SignedString([]byte(JWT_SECRET_KEY))

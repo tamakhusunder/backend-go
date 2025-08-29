@@ -58,6 +58,8 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Expires:  time.Now().Add(constants.REFRESH_TOKEN_EXPIRATION),
 	})
 
+	//Also can add the access token in cookies
+
 	fmt.Println("Token generated successfully:", accessToken)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message":      "Login successful",
