@@ -21,3 +21,7 @@ Run the program
     go run .
     go run main.go //use this main.go than . only
 ```
+
+new update------------
+now direct `run go run ./cmd` //to
+    run all files in the cmd file as package name is main

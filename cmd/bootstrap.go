@@ -1,10 +1,9 @@
 package main
 
 import (
-	// db "backend-go/database"
 	"backend-go/config"
 	db "backend-go/database"
-	handlers "backend-go/handlers"
+	"backend-go/handlers"
 	middleware "backend-go/middlewares"
 	"fmt"
 	"log"
@@ -13,16 +12,26 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// import (
-// 	"log"
+func Run() {
+	loadConfig()
+}
 
-func main() {
-	config.LoadEnv() // Load environment variables
+func loadConfig() {
 	var PORT = config.GetEnv("PORT", "8080")
+	config.LoadEnv() // Load environment variables
+	InitializeDB()   // Initialize MongoDB connection
 
-	db.InitDB() // Initialize MongoDB connection
+	var r = RegisterWebRouter(PORT)
+	InitializeWebServer(r, PORT)
+}
 
+func InitializeDB() {
+	db.InitDB()
+}
+
+func RegisterWebRouter(port string) *mux.Router {
 	r := mux.NewRouter()
+
 	//user
 	r.HandleFunc("/api/register", handlers.RegisterHandler).Methods("POST")
 	r.HandleFunc("/api/login", handlers.LoginHandler).Methods("POST")
@@ -32,7 +41,10 @@ func main() {
 
 	r.Handle("/api/profile", middleware.AuthMiddleware(http.HandlerFunc(handlers.ProfileHandler))).Methods("GET")
 	r.HandleFunc("/refresh", handlers.RefreshHandler)
+	return r
+}
 
+func InitializeWebServer(r *mux.Router, port string) {
 	log.Println("🚀 Server is running on port 8080")
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", PORT), r))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), r))
 }
