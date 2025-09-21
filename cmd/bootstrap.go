@@ -2,14 +2,15 @@ package main
 
 import (
 	"backend-go/config"
-	db "backend-go/database"
-	"backend-go/handlers"
-	middleware "backend-go/middlewares"
+	db "backend-go/database/mongo_db"
+	"backend-go/database/redisx"
+	uApp "backend-go/internal/user/app"
 	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func Run() {
@@ -17,34 +18,44 @@ func Run() {
 }
 
 func loadConfig() {
-	var PORT = config.GetEnv("PORT", "8080")
+	PORT := config.GetEnv("PORT", "8080")
 	config.LoadEnv() // Load environment variables
-	InitializeDB()   // Initialize MongoDB connection
 
-	var r = RegisterWebRouter(PORT)
+	mongoDB, err := InitializeMongoDB()
+	if err != nil {
+		log.Fatal("❌ DB init failed: ", err)
+	}
+
+	redisDB, err := InitializeRedis()
+	if err != nil {
+		log.Fatal("❌ Redis init failed: ", err)
+	}
+
+	r := RegisterWebAppRouter(PORT, mongoDB, redisDB)
 	InitializeWebServer(r, PORT)
 }
 
-func InitializeDB() {
-	db.InitDB()
+func InitializeMongoDB() (*mongo.Database, error) {
+	return db.InitDB()
 }
 
-func RegisterWebRouter(port string) *mux.Router {
+func InitializeRedis() (*redisx.Client, error) {
+	return redisx.InitRedis()
+}
+
+func RegisterWebAppRouter(port string, mongoDB *mongo.Database, redisDB *redisx.Client) *mux.Router {
 	r := mux.NewRouter()
 
-	//user
-	r.HandleFunc("/api/register", handlers.RegisterHandler).Methods("POST")
-	r.HandleFunc("/api/login", handlers.LoginHandler).Methods("POST")
+	userApp, err := uApp.NewApp(mongoDB, redisDB)
+	if err != nil {
+		log.Fatal("failed to initialize user app:", err)
+	}
+	userApp.RegisterRoutes(r.PathPrefix("/api/users").Subrouter())
 
-	//TODO
-	r.HandleFunc("/logout", handlers.LogoutHandler).Methods("POST")
-
-	r.Handle("/api/profile", middleware.AuthMiddleware(http.HandlerFunc(handlers.ProfileHandler))).Methods("GET")
-	r.HandleFunc("/refresh", handlers.RefreshHandler)
 	return r
 }
 
 func InitializeWebServer(r *mux.Router, port string) {
-	log.Println("🚀 Server is running on port 8080")
+	log.Println("🚀 Server is running on port:", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), r))
 }
