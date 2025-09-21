@@ -44,4 +44,5 @@ func (a *App) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/register", a.UserHandler.RegisterUser).Methods("POST")
 	r.HandleFunc("/login", a.UserHandler.LoginUser).Methods("POST")
 	r.Handle("/logout", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.LogoutUser))).Methods("POST")
+	r.Handle("/access-token", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.GetSilentAccesToken))).Methods("GET")
 }

@@ -20,6 +20,7 @@ type UserService interface {
 	Register(ctx context.Context, creds model.User) (interface{}, error)
 	Login(ctx context.Context, email string, password string, clientIp string) (*userType.UserResponse, error)
 	Logout(ctx context.Context, userId string) (interface{}, error)
+	GetSilentAccessToken(ctx context.Context, userId string, email string) (string, error)
 }
 
 type UserServiceImpl struct {
@@ -91,6 +92,15 @@ func (s *UserServiceImpl) Logout(ctx context.Context, userId string) (interface{
 	}
 
 	return nil, nil
+}
+func (s *UserServiceImpl) GetSilentAccessToken(ctx context.Context, userId string, email string) (string, error) {
+	accessToken, errAcessToken := utils.GenerateAccessToken(userId, email)
+
+	if errAcessToken != nil {
+		fmt.Print("Error generating JWT token", errAcessToken)
+		return "", domainerrors.ErrGeneratingJWTToken
+	}
+	return accessToken, nil
 }
 
 func (s *UserServiceImpl) FindByEmail(ctx context.Context, email string) (interface{}, error) {

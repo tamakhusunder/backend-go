@@ -23,6 +23,7 @@ type UserHandler interface {
 	LoginUser(w http.ResponseWriter, r *http.Request)
 	LogoutUser(w http.ResponseWriter, r *http.Request)
 	Profile(w http.ResponseWriter, r *http.Request)
+	GetSilentAccesToken(w http.ResponseWriter, r *http.Request)
 }
 
 type UserHandlerImpl struct {
@@ -108,9 +109,32 @@ func (h *UserHandlerImpl) Profile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"user_id": claims.UserID,
 		"email":   claims.Email,
+	})
+}
+
+func (h *UserHandlerImpl) GetSilentAccesToken(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value(contextkeys.UserContextKey).(*utils.Claims)
+
+	if !ok {
+		http.Error(w, "Could not get user info", http.StatusUnauthorized)
+		return
+	}
+
+	accessToken, err := h.userService.GetSilentAccessToken(context.Background(), claims.UserID, claims.Email)
+	if err != nil || accessToken == "" {
+		http.Error(w, "Could not get silent access token", http.StatusInternalServerError)
+		return
+	}
+
+	saveAccesTokenInHttpCookie(w, accessToken)
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"access_token": accessToken,
 	})
 }
 
@@ -144,13 +168,17 @@ func saveTokenInHttpCookie(w http.ResponseWriter, accessToken string, refreshTok
 		HttpOnly: true,
 		Expires:  time.Now().Add(constants.REFRESH_TOKEN_EXPIRATION),
 	})
+	saveAccesTokenInHttpCookie(w, accessToken)
+	fmt.Println("Token generated successfully:", accessToken)
+}
+
+func saveAccesTokenInHttpCookie(w http.ResponseWriter, accessToken string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
 		Value:    accessToken,
 		HttpOnly: true,
 		Expires:  time.Now().Add(constants.ACCESS_TOKEN_EXPIRATION),
 	})
-	fmt.Println("Token generated successfully:", accessToken)
 }
 
 func clearTokenInHttpCookie(w http.ResponseWriter) {
