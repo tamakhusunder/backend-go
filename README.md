@@ -1,6 +1,6 @@
 # backend-go
 
-## starting process
+## Process when project was started
 project setup
 ``go mod init backend-go``
 
@@ -13,6 +13,8 @@ go get github.com/joho/godotenv
 
 
 ```
+
+## Running the project 
 Start mongodb if run locally:
 ```sudo systemctl start mongod.service```
 
@@ -23,5 +25,15 @@ Run the program
 ```
 
 new update------------
-now direct `run go run ./cmd` //to
+now direct run `go run ./cmd` //to
     run all files in the cmd file as package name is main
+
+
+
+Redis start
+```
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
+```
+
+Basically a mix of Clean Architecture / Hexagonal Architecture

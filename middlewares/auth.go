@@ -25,13 +25,16 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		claims, err := utils.VerifyAndParseJWTToken(token)
+		//verify the token
+		claims, tokenErr := utils.VerifyAndParseJWTToken(token)
 
-		if err != nil {
-			fmt.Println("Token from header:", claims, err)
+		if tokenErr != nil {
+			fmt.Println("Token from header:", claims, tokenErr)
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
+
+		//TODO : check the validation time of refresh and access token
 
 		// TODO: Extract user from the DB using claims.UserID if needed
 
