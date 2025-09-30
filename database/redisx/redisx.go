@@ -4,6 +4,7 @@ import (
 	"backend-go/config"
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -38,6 +39,8 @@ func InitRedis() (*Client, error) {
 	if err := Rdb.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("redis ping failed: %w", err)
 	}
+	log.Println("✅ Connected to RedisDB")
+
 	return &Client{Rdb: Rdb}, nil
 }
 

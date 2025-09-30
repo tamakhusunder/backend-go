@@ -3,7 +3,6 @@ package db
 import (
 	"backend-go/config"
 	"context"
-	"fmt"
 	"log"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -27,6 +26,6 @@ func InitDB() (*mongo.Database, error) {
 		return nil, err
 	}
 
-	fmt.Println("✅ Connected to MongoDB")
+	log.Println("✅ Connected to MongoDB")
 	return client.Database(MongoDBName), nil
 }

@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -169,7 +168,6 @@ func saveTokenInHttpCookie(w http.ResponseWriter, accessToken string, refreshTok
 		Expires:  time.Now().Add(constants.REFRESH_TOKEN_EXPIRATION),
 	})
 	saveAccesTokenInHttpCookie(w, accessToken)
-	fmt.Println("Token generated successfully:", accessToken)
 }
 
 func saveAccesTokenInHttpCookie(w http.ResponseWriter, accessToken string) {

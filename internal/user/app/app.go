@@ -1,6 +1,7 @@
 package app
 
 import (
+	"backend-go/constants"
 	"backend-go/database/redisx"
 	handlers "backend-go/internal/user/handler"
 	repository "backend-go/internal/user/repository/mongoDb"
@@ -15,6 +16,7 @@ import (
 
 type App struct {
 	DB            *mongo.Database
+	redisDB       *redisx.Client
 	UserMangoRepo repository.UserRepository
 	UserRedisRepo redisRepository.UserRedisRepository
 	UserService   services.UserService
@@ -32,6 +34,7 @@ func NewApp(mongoDB *mongo.Database, redisDB *redisx.Client) (*App, error) {
 
 	return &App{
 		DB:            mongoDB,
+		redisDB:       redisDB,
 		UserMangoRepo: mongoRepo,
 		UserRedisRepo: redisRepo,
 		UserService:   service,
@@ -40,6 +43,10 @@ func NewApp(mongoDB *mongo.Database, redisDB *redisx.Client) (*App, error) {
 }
 
 func (a *App) RegisterRoutes(r *mux.Router) {
+	// Apply limiter to the router
+	rl := middleware.NewRateLimiter(a.redisDB, constants.RATE_LIMITER_RATE, constants.RATE_LIMITER_BURST)
+	r.Use(rl.Limit)
+
 	r.Handle("", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.Profile))).Methods("GET")
 	r.HandleFunc("/register", a.UserHandler.RegisterUser).Methods("POST")
 	r.HandleFunc("/login", a.UserHandler.LoginUser).Methods("POST")

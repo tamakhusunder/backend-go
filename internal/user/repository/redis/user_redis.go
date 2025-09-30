@@ -29,7 +29,6 @@ func (r *userCacheImpl) StoreToken(ctx context.Context, userID string, refreshTo
 		log.Printf("Failed to set user session in Redis: %v", rErr)
 		return nil, rErr
 	}
-	log.Printf("Token saved in redis for user: %s", userID)
 
 	return nil, nil
 }
