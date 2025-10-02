@@ -7,16 +7,19 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
 	contextkeys "backend-go/contextKeys"
+	redisRepository "backend-go/internal/user/repository/redis"
+	userType "backend-go/type"
 	"backend-go/utils"
 )
 
 // AuthMiddleware checks for a valid JWT token in the request header
 
-func AuthMiddleware(next http.Handler) http.Handler {
+func AuthMiddleware(next http.Handler, UserRedisRepo redisRepository.UserRedisRepository) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, errToken := extractTokenFromHeader(r)
 		if errToken != nil || token == "" {
@@ -34,12 +37,29 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Check blacklist first
+		isBlacklisted, err := UserRedisRepo.IsBlacklistedAccessToken(r.Context(), claims.UserID, token)
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if isBlacklisted {
+			log.Printf("Token %s for user %s is blacklisted", token, claims.UserID)
+			http.Error(w, "unauthorized access", http.StatusUnauthorized)
+			return
+		}
+
+		userContents := userType.UserContents{
+			Claims:      claims,
+			AccessToken: token,
+		}
+
 		//TODO : check the validation time of refresh and access token
 
 		// TODO: Extract user from the DB using claims.UserID if needed
 
 		// Attach user info into context
-		ctx := context.WithValue(r.Context(), contextkeys.UserContextKey, claims)
+		ctx := context.WithValue(r.Context(), contextkeys.UserKey, userContents)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

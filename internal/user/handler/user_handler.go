@@ -6,6 +6,7 @@ import (
 	domainerrors "backend-go/internal/errors"
 	"backend-go/internal/user/services"
 	model "backend-go/models"
+	userType "backend-go/type"
 	"backend-go/utils"
 	"context"
 	"encoding/json"
@@ -100,8 +101,8 @@ func (h *UserHandlerImpl) LoginUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandlerImpl) Profile(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value(contextkeys.UserContextKey).(*utils.Claims)
-	log.Printf("Claims in profile handler: %+v, ok: %v\n", claims, ok)
+	userContent, ok := r.Context().Value(contextkeys.UserKey).(userType.UserContents)
+	log.Printf("Claims in profile handler: %+v, ok: %v\n", userContent.Claims, ok)
 
 	if !ok {
 		http.Error(w, "Could not get user info", http.StatusUnauthorized)
@@ -110,20 +111,20 @@ func (h *UserHandlerImpl) Profile(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
-		"user_id": claims.UserID,
-		"email":   claims.Email,
+		"user_id": userContent.Claims.UserID,
+		"email":   userContent.Claims.Email,
 	})
 }
 
 func (h *UserHandlerImpl) GetSilentAccesToken(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value(contextkeys.UserContextKey).(*utils.Claims)
+	userContent, ok := r.Context().Value(contextkeys.UserKey).(userType.UserContents)
 
 	if !ok {
 		http.Error(w, "Could not get user info", http.StatusUnauthorized)
 		return
 	}
 
-	accessToken, err := h.userService.GetSilentAccessToken(context.Background(), claims.UserID, claims.Email)
+	accessToken, err := h.userService.GetSilentAccessToken(context.Background(), userContent.Claims.UserID, userContent.Claims.Email)
 	if err != nil || accessToken == "" {
 		http.Error(w, "Could not get silent access token", http.StatusInternalServerError)
 		return
@@ -138,14 +139,14 @@ func (h *UserHandlerImpl) GetSilentAccesToken(w http.ResponseWriter, r *http.Req
 }
 
 func (h *UserHandlerImpl) LogoutUser(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value(contextkeys.UserContextKey).(*utils.Claims)
+	userContent, ok := r.Context().Value(contextkeys.UserKey).(userType.UserContents)
 
 	if !ok {
 		http.Error(w, "Could not get user info", http.StatusUnauthorized)
 		return
 	}
 
-	_, err := h.userService.Logout(context.Background(), claims.UserID)
+	_, err := h.userService.Logout(context.Background(), userContent.Claims.UserID, userContent.AccessToken)
 	if err != nil {
 		http.Error(w, "Logout failed", http.StatusInternalServerError)
 		return

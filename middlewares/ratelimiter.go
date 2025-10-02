@@ -13,49 +13,59 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type TokenBucketState struct {
-	RateLimit       int       `json:"rate_limit"`
-	BurstLimit      int       `json:"burst_limit"`
-	RemainingTokens int       `json:"remaining_tokens"`
-	LastRefill      time.Time `json:"last_refill"`
+type RateLimitConfig struct {
+	RateLimit       int           `json:"rate_limit"`
+	BurstLimit      int           `json:"burst_limit"`
+	RemainingTokens int           `json:"remaining_tokens"`
+	TTL             time.Duration `json:"ttl"`
+	LastRefill      time.Time     `json:"last_refill"`
 }
 
 type RateLimiter struct {
 	redisClient *redisx.Client
-	rate        int
-	burst       int
+	defaultCfg  RateLimitConfig
+	routeCfg    map[string]RateLimitConfig
 }
 
-func NewRateLimiter(redisClient *redisx.Client, rate, burst int) *RateLimiter {
+func NewRateLimiter(redisClient *redisx.Client, defaultCfg RateLimitConfig) *RateLimiter {
 	return &RateLimiter{
 		redisClient: redisClient,
-		rate:        rate,
-		burst:       burst,
+		defaultCfg:  defaultCfg,
+		routeCfg:    make(map[string]RateLimitConfig),
 	}
+}
+
+func (rl *RateLimiter) AddRouteLimit(path string, cfg RateLimitConfig) {
+	rl.routeCfg[path] = cfg
 }
 
 func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := utils.GetClientIP(r)
-		key := "ratelimit:" + ip
+		path := r.URL.Path
+		key := "ratelimit:" + ip + ":" + path
 		ctx := context.Background()
+
+		cfg, exists := rl.routeCfg[path] // Check if specific config exists for the route
+		if !exists {
+			cfg = rl.defaultCfg
+		}
 
 		// Fetch from Redis
 		val, err := rl.redisClient.Rdb.Get(ctx, key).Result()
-		var state TokenBucketState
-
 		log.Println("TokenBucketState:", val)
 
 		if err == redis.Nil {
 			// First time this IP
-			state = TokenBucketState{
-				RateLimit:       rl.rate,
-				BurstLimit:      rl.burst,
-				RemainingTokens: rl.burst - 1, // Consume one token immediately
-				LastRefill:      time.Now(),
+			firstCfg := RateLimitConfig{
+				RateLimit:       cfg.RateLimit,
+				BurstLimit:      cfg.BurstLimit,
+				RemainingTokens: cfg.BurstLimit - 1, // Consume one token immediately
+				TTL:             cfg.TTL,
+				LastRefill:      cfg.LastRefill,
 			}
-			data, _ := json.Marshal(state)
-			rl.redisClient.Rdb.Set(ctx, key, data, 0)
+			data, _ := json.Marshal(firstCfg)
+			rl.redisClient.Rdb.Set(ctx, key, data, cfg.TTL)
 			next.ServeHTTP(w, r)
 			return
 		} else if err != nil {
@@ -63,27 +73,27 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 			return
 		}
 
-		// Decode JSON state
-		if err := json.Unmarshal([]byte(val), &state); err != nil {
+		// Decode JSON state from redis
+		if err := json.Unmarshal([]byte(val), &cfg); err != nil {
 			log.Print("Failed to unmarshal token bucket state:", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("RateLimiter State for %s: %+v\n", ip, state)
+		log.Printf("RateLimiter State for %s: %+v\n", ip, cfg)
 
 		// Refill tokens
 		now := time.Now()
-		elapsed := now.Sub(state.LastRefill).Minutes()
-		newTokens := int(elapsed * float64(state.RateLimit))
+		elapsed := now.Sub(cfg.LastRefill).Minutes()
+		newTokens := int(elapsed * float64(cfg.RateLimit))
 		if newTokens > 0 {
-			state.RemainingTokens = min(state.BurstLimit, state.RemainingTokens+newTokens)
-			state.LastRefill = now
+			cfg.RemainingTokens = utils.Min(cfg.BurstLimit, cfg.RemainingTokens+newTokens)
+			cfg.LastRefill = now
 		}
 
 		// Consume token
-		if state.RemainingTokens > 0 {
-			state.RemainingTokens--
-			data, _ := json.Marshal(state)
+		if cfg.RemainingTokens > 0 {
+			cfg.RemainingTokens--
+			data, _ := json.Marshal(cfg)
 			rl.redisClient.Rdb.Set(ctx, key, data, 0)
 			next.ServeHTTP(w, r)
 		} else {
@@ -97,11 +107,4 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 			return
 		}
 	})
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

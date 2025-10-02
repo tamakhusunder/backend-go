@@ -9,6 +9,7 @@ import (
 	"backend-go/internal/user/services"
 	middleware "backend-go/middlewares"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -43,13 +44,37 @@ func NewApp(mongoDB *mongo.Database, redisDB *redisx.Client) (*App, error) {
 }
 
 func (a *App) RegisterRoutes(r *mux.Router) {
-	// Apply limiter to the router
-	rl := middleware.NewRateLimiter(a.redisDB, constants.RATE_LIMITER_RATE, constants.RATE_LIMITER_BURST)
+	// Apply limiter to the router with default config
+	var defaultCfg = middleware.RateLimitConfig{
+		RateLimit:       constants.GLOBAL_RATE_LIMITER_RATE,
+		BurstLimit:      constants.GLOBAL_RATE_LIMITER_BURST,
+		RemainingTokens: constants.GLOBAL_RATE_LIMITER_BURST - 1,
+		TTL:             constants.GLOBAL_RATE_LIMITER_TTL,
+		LastRefill:      time.Now(),
+	}
+	rl := middleware.NewRateLimiter(a.redisDB, defaultCfg)
+
+	//specific route config
+	rl.AddRouteLimit("/login", middleware.RateLimitConfig{
+		RateLimit:       constants.LOGIN_RATE_LIMITER_RATE,
+		BurstLimit:      constants.LOGIN_RATE_LIMITER_BURST,
+		RemainingTokens: constants.LOGIN_RATE_LIMITER_BURST - 1,
+		TTL:             constants.GLOBAL_RATE_LIMITER_TTL,
+		LastRefill:      time.Now(),
+	})
+	rl.AddRouteLimit("", middleware.RateLimitConfig{
+		RateLimit:       constants.ME_RATE_LIMITER_RATE,
+		BurstLimit:      constants.ME_RATE_LIMITER_BURST,
+		RemainingTokens: constants.ME_RATE_LIMITER_BURST - 1,
+		TTL:             constants.GLOBAL_RATE_LIMITER_TTL,
+		LastRefill:      time.Now(),
+	})
+
 	r.Use(rl.Limit)
 
-	r.Handle("", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.Profile))).Methods("GET")
 	r.HandleFunc("/register", a.UserHandler.RegisterUser).Methods("POST")
 	r.HandleFunc("/login", a.UserHandler.LoginUser).Methods("POST")
-	r.Handle("/logout", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.LogoutUser))).Methods("POST")
-	r.Handle("/access-token", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.GetSilentAccesToken))).Methods("GET")
+	r.Handle("", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.Profile), a.UserRedisRepo)).Methods("GET")
+	r.Handle("/logout", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.LogoutUser), a.UserRedisRepo)).Methods("POST")
+	r.Handle("/access-token", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.GetSilentAccesToken), a.UserRedisRepo)).Methods("GET")
 }

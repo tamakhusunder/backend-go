@@ -1,6 +1,7 @@
 package services
 
 import (
+	"backend-go/constants"
 	domainerrors "backend-go/internal/errors"
 	repository "backend-go/internal/user/repository/mongoDb"
 	redisRepository "backend-go/internal/user/repository/redis"
@@ -19,7 +20,7 @@ import (
 type UserService interface {
 	Register(ctx context.Context, creds model.User) (interface{}, error)
 	Login(ctx context.Context, email string, password string, clientIp string) (*userType.UserResponse, error)
-	Logout(ctx context.Context, userId string) (interface{}, error)
+	Logout(ctx context.Context, userId string, accessToken string) (interface{}, error)
 	GetSilentAccessToken(ctx context.Context, userId string, email string) (string, error)
 }
 
@@ -85,8 +86,13 @@ func (s *UserServiceImpl) Login(ctx context.Context, email string, password stri
 	return resp, nil
 }
 
-func (s *UserServiceImpl) Logout(ctx context.Context, userId string) (interface{}, error) {
+func (s *UserServiceImpl) Logout(ctx context.Context, userId string, accessToken string) (interface{}, error) {
 	_, err := s.redisRepo.DeleteToken(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = s.redisRepo.SetBlacklistOfAccessToken(ctx, userId, accessToken, constants.ACCESS_TOKEN_EXPIRATION)
 	if err != nil {
 		return nil, err
 	}

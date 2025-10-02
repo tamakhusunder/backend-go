@@ -50,7 +50,7 @@ func RegisterWebAppRouter(port string, mongoDB *mongo.Database, redisDB *redisx.
 	if err != nil {
 		log.Fatal("failed to initialize user app:", err)
 	}
-	userApp.RegisterRoutes(r.PathPrefix("/api/users").Subrouter())
+	userApp.RegisterRoutes(r.PathPrefix("/api/user").Subrouter())
 
 	return r
 }
