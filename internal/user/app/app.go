@@ -55,17 +55,17 @@ func (a *App) RegisterRoutes(r *mux.Router) {
 	rl := middleware.NewRateLimiter(a.redisDB, defaultCfg)
 
 	//specific route config
-	rl.AddRouteLimit("/login", middleware.RateLimitConfig{
+	rl.AddRouteLimit("/api/user/login", middleware.RateLimitConfig{
 		RateLimit:       constants.LOGIN_RATE_LIMITER_RATE,
 		BurstLimit:      constants.LOGIN_RATE_LIMITER_BURST,
 		RemainingTokens: constants.LOGIN_RATE_LIMITER_BURST - 1,
 		TTL:             constants.GLOBAL_RATE_LIMITER_TTL,
 		LastRefill:      time.Now(),
 	})
-	rl.AddRouteLimit("", middleware.RateLimitConfig{
-		RateLimit:       constants.ME_RATE_LIMITER_RATE,
-		BurstLimit:      constants.ME_RATE_LIMITER_BURST,
-		RemainingTokens: constants.ME_RATE_LIMITER_BURST - 1,
+	rl.AddRouteLimit("/api/user/profile", middleware.RateLimitConfig{
+		RateLimit:       constants.PROFILE_RATE_LIMITER_RATE,
+		BurstLimit:      constants.PROFILE_RATE_LIMITER_BURST,
+		RemainingTokens: constants.PROFILE_RATE_LIMITER_BURST - 1,
 		TTL:             constants.GLOBAL_RATE_LIMITER_TTL,
 		LastRefill:      time.Now(),
 	})
@@ -74,7 +74,7 @@ func (a *App) RegisterRoutes(r *mux.Router) {
 
 	r.HandleFunc("/register", a.UserHandler.RegisterUser).Methods("POST")
 	r.HandleFunc("/login", a.UserHandler.LoginUser).Methods("POST")
-	r.Handle("", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.Profile), a.UserRedisRepo)).Methods("GET")
+	r.Handle("/profile", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.Profile), a.UserRedisRepo)).Methods("GET")
 	r.Handle("/logout", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.LogoutUser), a.UserRedisRepo)).Methods("POST")
-	r.Handle("/access-token", middleware.AuthMiddleware(http.HandlerFunc(a.UserHandler.GetSilentAccesToken), a.UserRedisRepo)).Methods("GET")
+	r.Handle("/access-token", middleware.RefreshAuthMiddleware(http.HandlerFunc(a.UserHandler.GetSilentAccesToken), a.UserRedisRepo)).Methods("GET")
 }

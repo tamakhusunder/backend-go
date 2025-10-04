@@ -1,4 +1,3 @@
-// internal/middleware/ratelimiter.go
 package middleware
 
 import (
@@ -39,6 +38,7 @@ func (rl *RateLimiter) AddRouteLimit(path string, cfg RateLimitConfig) {
 	rl.routeCfg[path] = cfg
 }
 
+// Token Bucket Algorithm
 func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := utils.GetClientIP(r)
@@ -79,9 +79,9 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("RateLimiter State for %s: %+v\n", ip, cfg)
+		log.Printf("RateLimiter State for IP %s and Path %s: %+v\n", ip, path, cfg)
 
-		// Refill tokens
+		// Refill tokens per minute
 		now := time.Now()
 		elapsed := now.Sub(cfg.LastRefill).Minutes()
 		newTokens := int(elapsed * float64(cfg.RateLimit))
@@ -94,10 +94,9 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 		if cfg.RemainingTokens > 0 {
 			cfg.RemainingTokens--
 			data, _ := json.Marshal(cfg)
-			rl.redisClient.Rdb.Set(ctx, key, data, 0)
+			rl.redisClient.Rdb.Set(ctx, key, data, cfg.TTL)
 			next.ServeHTTP(w, r)
 		} else {
-			// http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
 			json.NewEncoder(w).Encode(map[string]string{

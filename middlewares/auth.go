@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
+	"time"
 
 	contextkeys "backend-go/contextKeys"
 	redisRepository "backend-go/internal/user/repository/redis"
@@ -21,62 +21,68 @@ import (
 
 func AuthMiddleware(next http.Handler, UserRedisRepo redisRepository.UserRedisRepository) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, errToken := extractTokenFromHeader(r)
-		if errToken != nil || token == "" {
+		accessToken, errToken := utils.ExtractTokenFromHeader(r)
+		if errToken != nil || accessToken == "" {
 			fmt.Println("Error Token", errToken)
-			http.Error(w, "Missing or invalid token", http.StatusUnauthorized)
+			http.Error(w, "Missing or invalid Access Token", http.StatusUnauthorized)
 			return
 		}
 
 		//verify the token
-		claims, tokenErr := utils.VerifyAndParseJWTToken(token)
-
+		claims, tokenErr := utils.VerifyAndParseJWTToken(accessToken)
 		if tokenErr != nil {
 			fmt.Println("Token from header:", claims, tokenErr)
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
 
-		// Check blacklist first
-		isBlacklisted, err := UserRedisRepo.IsBlacklistedAccessToken(r.Context(), claims.UserID, token)
+		// Check blacklist access token
+		isBlacklisted, err := UserRedisRepo.IsBlacklistedAccessToken(r.Context(), claims.UserID, accessToken)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 		if isBlacklisted {
-			log.Printf("Token %s for user %s is blacklisted", token, claims.UserID)
+			log.Printf("Token %s for user %s is blacklisted", accessToken, claims.UserID)
 			http.Error(w, "unauthorized access", http.StatusUnauthorized)
 			return
 		}
 
-		userContents := userType.UserContents{
-			Claims:      claims,
-			AccessToken: token,
+		// verify token expiry
+		unixTimeSeconds := time.Now().Unix()
+		if claims.ExpiresAt == nil || claims.ExpiresAt.Unix() < unixTimeSeconds {
+			http.Error(w, "Token expired", http.StatusUnauthorized)
+			return
 		}
 
-		//TODO : check the validation time of refresh and access token
+		//verify the token ip address with the stored ip address in redis
+		storedRdxToken, err := UserRedisRepo.GetToken(r.Context(), claims.UserID)
+		if err != nil {
+			log.Printf("Failed to get user session from Redis: %v", err)
+			http.Error(w, "internastoredDatal error", http.StatusInternalServerError)
+			return
+		}
+		if storedRdxToken == nil {
+			http.Error(w, "unauthorized access", http.StatusUnauthorized)
+			return
+		}
+
+		clientIp := utils.GetClientIP(r)
+		if storedRdxToken.IPAddress != clientIp {
+			log.Printf("IP address mismatch: token IP %s, request IP %s", storedRdxToken.IPAddress, clientIp)
+			http.Error(w, "unauthorized access", http.StatusUnauthorized)
+			return
+		}
 
 		// TODO: Extract user from the DB using claims.UserID if needed
 
 		// Attach user info into context
+		userContents := userType.UserContents{
+			Claims:      claims,
+			AccessToken: accessToken,
+		}
 		ctx := context.WithValue(r.Context(), contextkeys.UserKey, userContents)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-// Extract token from Authorization header
-func extractTokenFromHeader(r *http.Request) (string, error) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return "", fmt.Errorf("authorization header missing")
-	}
-
-	// Check for Bearer token format
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		return "", fmt.Errorf("invalid authorization header format")
-	}
-
-	return parts[1], nil
 }

@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"backend-go/constants"
+	domainerrors "backend-go/constants/errors"
 	contextkeys "backend-go/contextKeys"
-	domainerrors "backend-go/internal/errors"
 	"backend-go/internal/user/services"
 	model "backend-go/models"
 	userType "backend-go/type"
@@ -124,7 +124,7 @@ func (h *UserHandlerImpl) GetSilentAccesToken(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	accessToken, err := h.userService.GetSilentAccessToken(context.Background(), userContent.Claims.UserID, userContent.Claims.Email)
+	accessToken, err := h.userService.GetSilentAccessToken(context.Background(), userContent.Claims.UserID, userContent.Claims.Email, utils.GetClientIP(r))
 	if err != nil || accessToken == "" {
 		http.Error(w, "Could not get silent access token", http.StatusInternalServerError)
 		return
@@ -134,6 +134,7 @@ func (h *UserHandlerImpl) GetSilentAccesToken(w http.ResponseWriter, r *http.Req
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
+		"message":      "Access token refreshed successful",
 		"access_token": accessToken,
 	})
 }
@@ -167,7 +168,9 @@ func saveTokenInHttpCookie(w http.ResponseWriter, accessToken string, refreshTok
 		Value:    refreshToken,
 		HttpOnly: true,
 		Expires:  time.Now().Add(constants.REFRESH_TOKEN_EXPIRATION),
+		Path:     "/",
 	})
+
 	saveAccesTokenInHttpCookie(w, accessToken)
 }
 
@@ -177,6 +180,7 @@ func saveAccesTokenInHttpCookie(w http.ResponseWriter, accessToken string) {
 		Value:    accessToken,
 		HttpOnly: true,
 		Expires:  time.Now().Add(constants.ACCESS_TOKEN_EXPIRATION),
+		Path:     "/",
 	})
 }
 
@@ -186,11 +190,13 @@ func clearTokenInHttpCookie(w http.ResponseWriter) {
 		Value:    "",
 		HttpOnly: true,
 		Expires:  time.Unix(0, 0),
+		Path:     "/",
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
 		Value:    "",
 		HttpOnly: true,
 		Expires:  time.Unix(0, 0),
+		Path:     "/",
 	})
 }

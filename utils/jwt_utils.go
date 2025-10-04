@@ -4,6 +4,8 @@ import (
 	"backend-go/config"
 	"backend-go/constants"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -67,4 +69,20 @@ func VerifyAndParseJWTToken(tokenString string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+// Extract token from Authorization header
+func ExtractTokenFromHeader(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", fmt.Errorf("authorization header missing")
+	}
+
+	// Check for Bearer token format
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return "", fmt.Errorf("invalid authorization header format")
+	}
+
+	return parts[1], nil
 }

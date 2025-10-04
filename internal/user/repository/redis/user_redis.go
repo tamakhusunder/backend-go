@@ -12,6 +12,7 @@ import (
 
 type UserRedisRepository interface {
 	StoreToken(ctx context.Context, userID string, refreshToken string, clientIp string) (interface{}, error)
+	GetToken(ctx context.Context, userID string) (*RdsTokenSession, error)
 	DeleteToken(ctx context.Context, userID string) (interface{}, error)
 	SetBlacklistOfAccessToken(ctx context.Context, userID string, accessToken string, ttlTime time.Duration) (interface{}, error)
 	IsBlacklistedAccessToken(ctx context.Context, userID string, accessToken string) (bool, error)
@@ -19,6 +20,11 @@ type UserRedisRepository interface {
 
 type userCacheImpl struct {
 	redis *redisx.Client
+}
+
+type RdsTokenSession struct {
+	RefreshToken string `redis:"refreshToken"`
+	IPAddress    string `redis:"ipAddress"`
 }
 
 func NewUserCache(rDb *redisx.Client) UserRedisRepository {
@@ -29,19 +35,44 @@ func NewUserCache(rDb *redisx.Client) UserRedisRepository {
 
 // methods for storing and deleting refresh tokens(used during login and logout)
 func (r *userCacheImpl) StoreToken(ctx context.Context, userID string, refreshToken string, clientIp string) (interface{}, error) {
-	if rErr := redisx.Rdb.HSet(ctx, userID, map[string]interface{}{
-		"refreshToken": refreshToken,
-		"ipAddress":    clientIp,
-	}).Err(); rErr != nil {
+	key := "refreshTokenWithIp:" + userID
+	sessionData := RdsTokenSession{
+		RefreshToken: refreshToken,
+		IPAddress:    clientIp,
+	}
+	if rErr := redisx.Rdb.HSet(ctx, key, sessionData).Err(); rErr != nil {
 		log.Printf("Failed to set user session in Redis: %v", rErr)
+		return nil, rErr
+	}
+
+	if rErr := redisx.Rdb.Expire(ctx, key, constants.REFRESH_TOKEN_EXPIRATION).Err(); rErr != nil {
+		log.Printf("Failed to set expiration for user session in Redis: %v", rErr)
 		return nil, rErr
 	}
 
 	return nil, nil
 }
 
+func (r *userCacheImpl) GetToken(ctx context.Context, userID string) (*RdsTokenSession, error) {
+	key := "refreshTokenWithIp:" + userID
+	session := &RdsTokenSession{}
+
+	err := redisx.Rdb.HGetAll(ctx, key).Scan(session)
+	if err == redis.Nil {
+		log.Printf("Key not found in redis: %v", err)
+		return nil, err
+	}
+	if err != nil {
+		log.Printf("Failed to retrieve or scan session data: %v", err)
+		return nil, nil // No session found
+	}
+
+	return session, nil
+}
+
 func (r *userCacheImpl) DeleteToken(ctx context.Context, userID string) (interface{}, error) {
-	exists, err := redisx.Rdb.Exists(ctx, userID).Result()
+	key := "refreshTokenWithIp:" + userID
+	exists, err := redisx.Rdb.Exists(ctx, key).Result()
 	if err != nil {
 		log.Printf("Failed to delete user session in Redis: %v", err)
 		return nil, err

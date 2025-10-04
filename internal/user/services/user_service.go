@@ -2,7 +2,7 @@ package services
 
 import (
 	"backend-go/constants"
-	domainerrors "backend-go/internal/errors"
+	domainerrors "backend-go/constants/errors"
 	repository "backend-go/internal/user/repository/mongoDb"
 	redisRepository "backend-go/internal/user/repository/redis"
 	model "backend-go/models"
@@ -21,7 +21,7 @@ type UserService interface {
 	Register(ctx context.Context, creds model.User) (interface{}, error)
 	Login(ctx context.Context, email string, password string, clientIp string) (*userType.UserResponse, error)
 	Logout(ctx context.Context, userId string, accessToken string) (interface{}, error)
-	GetSilentAccessToken(ctx context.Context, userId string, email string) (string, error)
+	GetSilentAccessToken(ctx context.Context, userId string, email string, clientIp string) (string, error)
 }
 
 type UserServiceImpl struct {
@@ -99,13 +99,21 @@ func (s *UserServiceImpl) Logout(ctx context.Context, userId string, accessToken
 
 	return nil, nil
 }
-func (s *UserServiceImpl) GetSilentAccessToken(ctx context.Context, userId string, email string) (string, error) {
+func (s *UserServiceImpl) GetSilentAccessToken(ctx context.Context, userId string, email string, clientIp string) (string, error) {
 	accessToken, errAcessToken := utils.GenerateAccessToken(userId, email)
+	refreshToken, errRefreshToken := utils.GenerateRefreshToken(userId, email)
 
-	if errAcessToken != nil {
+	if errAcessToken != nil || errRefreshToken != nil {
 		fmt.Print("Error generating JWT token", errAcessToken)
 		return "", domainerrors.ErrGeneratingJWTToken
 	}
+
+	// store token in redis
+	if _, storeErr := s.redisRepo.StoreToken(ctx, userId, refreshToken, clientIp); storeErr != nil {
+		fmt.Print("Error storing token in redis", storeErr)
+		return "", domainerrors.ErrStoringTokenInRedis
+	}
+
 	return accessToken, nil
 }
 
