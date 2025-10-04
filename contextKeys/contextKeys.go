@@ -2,4 +2,4 @@ package contextkeys
 
 type contextKey string
 
-const UserContextKey = contextKey("user")
+const UserKey = contextKey("user")
