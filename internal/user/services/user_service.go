@@ -101,17 +101,9 @@ func (s *UserServiceImpl) Logout(ctx context.Context, userId string, accessToken
 }
 func (s *UserServiceImpl) GetSilentAccessToken(ctx context.Context, userId string, email string, clientIp string) (string, error) {
 	accessToken, errAcessToken := utils.GenerateAccessToken(userId, email)
-	refreshToken, errRefreshToken := utils.GenerateRefreshToken(userId, email)
-
-	if errAcessToken != nil || errRefreshToken != nil {
+	if errAcessToken != nil {
 		fmt.Print("Error generating JWT token", errAcessToken)
 		return "", domainerrors.ErrGeneratingJWTToken
-	}
-
-	// store token in redis
-	if _, storeErr := s.redisRepo.StoreToken(ctx, userId, refreshToken, clientIp); storeErr != nil {
-		fmt.Print("Error storing token in redis", storeErr)
-		return "", domainerrors.ErrStoringTokenInRedis
 	}
 
 	return accessToken, nil

@@ -14,42 +14,57 @@ import (
 
 func RefreshAuthMiddleware(next http.Handler, UserRedisRepo redisRepository.UserRedisRepository) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//validate the refreshToken
-		isRefreshTokenVerified, err := isRefreshTokenVerified(r, UserRedisRepo)
-		if err != nil || !isRefreshTokenVerified {
-			http.Error(w, "Unauthorized - invalid refresh token", http.StatusUnauthorized)
+		//check if user is blacklisted
+		accessToken, errAccessToken := r.Cookie("access_token")
+		if errAccessToken != nil {
+			log.Println("Missing or invalid Access Token", errAccessToken)
+			http.Error(w, "Missing or invalid Access Token", http.StatusUnauthorized)
+			return
+		}
+		isNotBlacklisted, err := checkIsUserBlacklist(r, UserRedisRepo, accessToken.Value)
+		if err != nil || !isNotBlacklisted {
+			http.Error(w, "Unauthorized - user is blacklisted", http.StatusUnauthorized)
 			return
 		}
 
-		//validate the accessToken
-		accessToken, errToken := utils.ExtractTokenFromHeader(r)
-		if errToken != nil || accessToken == "" {
+		//validate the refreshToken
+		refreshToken, errToken := utils.ExtractTokenFromHeader(r)
+		if errToken != nil || refreshToken == "" {
 			log.Println("Error Token", errToken)
 			http.Error(w, "Missing or invalid Access Token", http.StatusUnauthorized)
 			return
 		}
 
-		accessTokenClaims, tokenErr := utils.VerifyAndParseJWTToken(accessToken)
+		refreshTokenClaims, tokenErr := utils.VerifyAndParseJWTToken(refreshToken)
 		if tokenErr != nil {
-			log.Println("Token from header:", accessTokenClaims, tokenErr)
+			log.Println("Token from header:", refreshTokenClaims, tokenErr)
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
 
-		isBlacklisted, err := UserRedisRepo.IsBlacklistedAccessToken(r.Context(), accessTokenClaims.UserID, accessToken)
-		if err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
+		//verify token expiry and check ip address
+		unixTimeSeconds := time.Now().Unix()
+		if refreshTokenClaims.ExpiresAt == nil || refreshTokenClaims.ExpiresAt.Unix() < unixTimeSeconds {
+			log.Println("Refresh Token expired")
+			http.Error(w, "Token expired", http.StatusUnauthorized)
 			return
 		}
-		if isBlacklisted {
-			log.Printf("Token %s for user %s is blacklisted", accessToken, accessTokenClaims.UserID)
-			http.Error(w, "unauthorized access", http.StatusUnauthorized)
+
+		storedRdxToken, err := UserRedisRepo.GetToken(r.Context(), refreshTokenClaims.UserID)
+		clientIp := utils.GetClientIP(r)
+		if err != nil || storedRdxToken == nil {
+			log.Printf("Failed to get user session from Redis: %v", err)
+			http.Error(w, "Unauthorized - invalid session", http.StatusUnauthorized)
+			return
+		} else if storedRdxToken.IPAddress != clientIp || storedRdxToken.RefreshToken != refreshToken {
+			log.Printf("IP address mismatch: token IP %s, request IP %s", storedRdxToken.IPAddress, clientIp)
+			http.Error(w, "Unauthorized - invalid session", http.StatusUnauthorized)
 			return
 		}
 
 		userContents := userType.UserContents{
-			Claims:      accessTokenClaims,
-			AccessToken: accessToken,
+			Claims:      refreshTokenClaims,
+			AccessToken: accessToken.Value,
 		}
 		ctx := context.WithValue(r.Context(), contextkeys.UserKey, userContents)
 
@@ -57,31 +72,16 @@ func RefreshAuthMiddleware(next http.Handler, UserRedisRepo redisRepository.User
 	})
 }
 
-func isRefreshTokenVerified(r *http.Request, UserRedisRepo redisRepository.UserRedisRepository) (bool, error) {
-	refreshToken, errRefreshToken := r.Cookie("refresh_token")
-	if errRefreshToken != nil {
-		log.Println("Missing or invalid Refresh Token", errRefreshToken)
-		return false, errRefreshToken
+func checkIsUserBlacklist(r *http.Request, UserRedisRepo redisRepository.UserRedisRepository, accessToken string) (bool, error) {
+	accessTokenClaims, tokenErr := utils.VerifyAndParseJWTToken(accessToken)
+	if tokenErr != nil {
+		log.Println("Invalid token", tokenErr)
+		return false, tokenErr
 	}
 
-	refreshTokenClaims, refreshTokenErr := utils.VerifyAndParseJWTToken(refreshToken.Value)
-	if refreshTokenErr != nil {
-		log.Println("Invalid token", refreshTokenErr)
-		return false, refreshTokenErr
-	}
-
-	// verify token expiry and check ip address
-	unixTimeSeconds := time.Now().Unix()
-	if refreshTokenClaims.ExpiresAt == nil || refreshTokenClaims.ExpiresAt.Unix() < unixTimeSeconds {
-		storedRdxToken, err := UserRedisRepo.GetToken(r.Context(), refreshTokenClaims.UserID)
-		clientIp := utils.GetClientIP(r)
-		if err != nil || storedRdxToken == nil {
-			log.Printf("Failed to get user session from Redis: %v", err)
-			return false, err
-		} else if storedRdxToken.IPAddress != clientIp {
-			log.Printf("IP address mismatch: token IP %s, request IP %s", storedRdxToken.IPAddress, clientIp)
-			return false, nil
-		}
+	isBlacklisted, err := UserRedisRepo.IsBlacklistedAccessToken(r.Context(), accessTokenClaims.UserID, accessToken)
+	if err != nil || isBlacklisted {
+		return false, err
 	}
 
 	return true, nil

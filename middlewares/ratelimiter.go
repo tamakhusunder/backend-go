@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"backend-go/database/redisx"
+	rdsModel "backend-go/models/redis"
 	"backend-go/utils"
 	"context"
 	"encoding/json"
@@ -12,29 +13,21 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type RateLimitConfig struct {
-	RateLimit       int           `json:"rate_limit"`
-	BurstLimit      int           `json:"burst_limit"`
-	RemainingTokens int           `json:"remaining_tokens"`
-	TTL             time.Duration `json:"ttl"`
-	LastRefill      time.Time     `json:"last_refill"`
-}
-
 type RateLimiter struct {
 	redisClient *redisx.Client
-	defaultCfg  RateLimitConfig
-	routeCfg    map[string]RateLimitConfig
+	defaultCfg  rdsModel.RateLimitConfig
+	routeCfg    map[string]rdsModel.RateLimitConfig
 }
 
-func NewRateLimiter(redisClient *redisx.Client, defaultCfg RateLimitConfig) *RateLimiter {
+func NewRateLimiter(redisClient *redisx.Client, defaultCfg rdsModel.RateLimitConfig) *RateLimiter {
 	return &RateLimiter{
 		redisClient: redisClient,
 		defaultCfg:  defaultCfg,
-		routeCfg:    make(map[string]RateLimitConfig),
+		routeCfg:    make(map[string]rdsModel.RateLimitConfig),
 	}
 }
 
-func (rl *RateLimiter) AddRouteLimit(path string, cfg RateLimitConfig) {
+func (rl *RateLimiter) AddRouteLimit(path string, cfg rdsModel.RateLimitConfig) {
 	rl.routeCfg[path] = cfg
 }
 
@@ -57,10 +50,10 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 
 		if err == redis.Nil {
 			// First time this IP
-			firstCfg := RateLimitConfig{
+			firstCfg := rdsModel.RateLimitConfig{
 				RateLimit:       cfg.RateLimit,
 				BurstLimit:      cfg.BurstLimit,
-				RemainingTokens: cfg.BurstLimit - 1, // Consume one token immediately
+				RemainingTokens: cfg.RemainingTokens,
 				TTL:             cfg.TTL,
 				LastRefill:      cfg.LastRefill,
 			}
@@ -81,14 +74,7 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 		}
 		log.Printf("RateLimiter State for IP %s and Path %s: %+v\n", ip, path, cfg)
 
-		// Refill tokens per minute
-		now := time.Now()
-		elapsed := now.Sub(cfg.LastRefill).Minutes()
-		newTokens := int(elapsed * float64(cfg.RateLimit))
-		if newTokens > 0 {
-			cfg.RemainingTokens = utils.Min(cfg.BurstLimit, cfg.RemainingTokens+newTokens)
-			cfg.LastRefill = now
-		}
+		rl.refill(&cfg)
 
 		// Consume token
 		if cfg.RemainingTokens > 0 {
@@ -106,4 +92,15 @@ func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 			return
 		}
 	})
+}
+
+// Refill tokens per minute
+func (rl *RateLimiter) refill(cfg *rdsModel.RateLimitConfig) {
+	now := time.Now()
+	elapsed := now.Sub(cfg.LastRefill).Minutes()
+	newTokens := int(elapsed * float64(cfg.RateLimit))
+	if newTokens > 0 {
+		cfg.RemainingTokens = utils.Min(cfg.BurstLimit, cfg.RemainingTokens+newTokens)
+		cfg.LastRefill = now
+	}
 }

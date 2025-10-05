@@ -93,10 +93,11 @@ func (h *UserHandlerImpl) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
-		"message":      "Login successful",
-		"access_token": userRes.AccessToken,
-		"user_id":      userRes.User.ID,
-		"email":        userRes.User.Email,
+		"message":       "Login successful",
+		"access_token":  userRes.AccessToken,
+		"refresh_token": userRes.RefreshToken,
+		"user_id":       userRes.User.ID,
+		"email":         userRes.User.Email,
 	})
 }
 

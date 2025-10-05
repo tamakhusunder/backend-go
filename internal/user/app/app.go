@@ -8,6 +8,7 @@ import (
 	redisRepository "backend-go/internal/user/repository/redis"
 	"backend-go/internal/user/services"
 	middleware "backend-go/middlewares"
+	rdsModel "backend-go/models/redis"
 	"net/http"
 	"time"
 
@@ -45,7 +46,7 @@ func NewApp(mongoDB *mongo.Database, redisDB *redisx.Client) (*App, error) {
 
 func (a *App) RegisterRoutes(r *mux.Router) {
 	// Apply limiter to the router with default config
-	var defaultCfg = middleware.RateLimitConfig{
+	var defaultCfg = rdsModel.RateLimitConfig{
 		RateLimit:       constants.GLOBAL_RATE_LIMITER_RATE,
 		BurstLimit:      constants.GLOBAL_RATE_LIMITER_BURST,
 		RemainingTokens: constants.GLOBAL_RATE_LIMITER_BURST - 1,
@@ -55,14 +56,14 @@ func (a *App) RegisterRoutes(r *mux.Router) {
 	rl := middleware.NewRateLimiter(a.redisDB, defaultCfg)
 
 	//specific route config
-	rl.AddRouteLimit("/api/user/login", middleware.RateLimitConfig{
+	rl.AddRouteLimit("/api/user/login", rdsModel.RateLimitConfig{
 		RateLimit:       constants.LOGIN_RATE_LIMITER_RATE,
 		BurstLimit:      constants.LOGIN_RATE_LIMITER_BURST,
 		RemainingTokens: constants.LOGIN_RATE_LIMITER_BURST - 1,
 		TTL:             constants.GLOBAL_RATE_LIMITER_TTL,
 		LastRefill:      time.Now(),
 	})
-	rl.AddRouteLimit("/api/user/profile", middleware.RateLimitConfig{
+	rl.AddRouteLimit("/api/user/profile", rdsModel.RateLimitConfig{
 		RateLimit:       constants.PROFILE_RATE_LIMITER_RATE,
 		BurstLimit:      constants.PROFILE_RATE_LIMITER_BURST,
 		RemainingTokens: constants.PROFILE_RATE_LIMITER_BURST - 1,

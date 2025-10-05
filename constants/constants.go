@@ -17,7 +17,7 @@ const GLOBAL_RATE_LIMITER_BURST = 5                          // max bucket size
 const GLOBAL_RATE_LIMITER_TTL time.Duration = 24 * time.Hour // key expiration time for 1 day
 const INFINITY_TTL time.Duration = 0
 
-const LOGIN_RATE_LIMITER_RATE = 1  // tokens per minute
+const LOGIN_RATE_LIMITER_RATE = 3  // tokens per minute
 const LOGIN_RATE_LIMITER_BURST = 6 // max bucket size
 
 const PROFILE_RATE_LIMITER_RATE = 10  // tokens per minute
