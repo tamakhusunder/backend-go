@@ -10,4 +10,7 @@ var (
 
 	ErrGeneratingJWTToken  = errors.New("error in generating JWT token")
 	ErrStoringTokenInRedis = errors.New("error in redis store")
+	ErrStoringTokenInDb    = errors.New("error in Database")
+
+	ErrCacheMiss = errors.New("cache miss")
 )

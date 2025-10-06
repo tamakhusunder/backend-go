@@ -77,8 +77,6 @@ func (h *UserHandlerImpl) LoginUser(w http.ResponseWriter, r *http.Request) {
 	clientIp := utils.GetClientIP(r)
 
 	userRes, err := h.userService.Login(ctx, creds.Email, creds.Password, clientIp)
-	saveTokenInHttpCookie(w, userRes.AccessToken, userRes.RefreshToken)
-
 	if err != nil {
 		switch {
 		case errors.Is(err, domainerrors.ErrUserNotFound):
@@ -91,6 +89,7 @@ func (h *UserHandlerImpl) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	saveTokenInHttpCookie(w, userRes.AccessToken, userRes.RefreshToken)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message":       "Login successful",
@@ -104,16 +103,30 @@ func (h *UserHandlerImpl) LoginUser(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandlerImpl) Profile(w http.ResponseWriter, r *http.Request) {
 	userContent, ok := r.Context().Value(contextkeys.UserKey).(userType.UserContents)
 	log.Printf("Claims in profile handler: %+v, ok: %v\n", userContent.Claims, ok)
-
 	if !ok {
 		http.Error(w, "Could not get user info", http.StatusUnauthorized)
 		return
 	}
 
+	user, err := h.userService.Profile(context.Background(), userContent.Claims.UserID, utils.GetClientIP(r))
+	if err != nil {
+		switch {
+		case errors.Is(err, domainerrors.ErrUserNotFound):
+			http.Error(w, "user not found", http.StatusNotFound)
+		default:
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
-		"user_id": userContent.Claims.UserID,
-		"email":   userContent.Claims.Email,
+		"user_id": user.ID,
+		"email":   user.Email,
+		"role":    user.Role,
+		"token":   user.Token,
+		"ip":      user.IPAddress,
 	})
 }
 
