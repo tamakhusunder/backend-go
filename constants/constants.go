@@ -12,16 +12,16 @@ const ACCESS_TOKEN_EXPIRATION time.Duration = time.Duration(ACCESS_TOKEN_EXPIRAT
 const REFRESH_TOKEN_EXPIRATION time.Duration = time.Duration(REFRESH_TOKEN_EXPIRATION_IN_SECONDS) * time.Second // 3 days
 
 // Rate Limiter settings
-const GLOBAL_RATE_LIMITER_RATE = 5                                          // in minutes                                     // tokens per minute
-const GLOBAL_RATE_LIMITER_BURST = 5                                         // max bucket size
-const GLOBAL_RATE_LIMITER_TTL time.Duration = time.Duration(24 * time.Hour) // key expiration time
+const GLOBAL_RATE_LIMITER_RATE = 5                           // in minutes                                     // tokens per minute
+const GLOBAL_RATE_LIMITER_BURST = 5                          // max bucket size
+const GLOBAL_RATE_LIMITER_TTL time.Duration = 24 * time.Hour // key expiration time for 1 day
 const INFINITY_TTL time.Duration = 0
 
-const LOGIN_RATE_LIMITER_RATE = 1  // tokens per minute
-const LOGIN_RATE_LIMITER_BURST = 5 // max bucket size
+const LOGIN_RATE_LIMITER_RATE = 3  // tokens per minute
+const LOGIN_RATE_LIMITER_BURST = 6 // max bucket size
 
-const ME_RATE_LIMITER_RATE = 10  // tokens per minute
-const ME_RATE_LIMITER_BURST = 10 // max bucket size
+const PROFILE_RATE_LIMITER_RATE = 10  // tokens per minute
+const PROFILE_RATE_LIMITER_BURST = 10 // max bucket size
 
 // Blacklist settings
 const BLACKLIST_ACCESS_TOKEN string = "blacklistAcessToken"
