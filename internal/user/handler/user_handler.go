@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"backend-go/config"
 	"backend-go/constants"
 	domainerrors "backend-go/constants/errors"
 	contextkeys "backend-go/contextKeys"
@@ -74,7 +75,7 @@ func (h *UserHandlerImpl) LoginUser(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	clientIp := utils.GetClientIP(r)
+	clientIp := utils.GetClientIP(r, config.IsLocal())
 
 	userRes, err := h.userService.Login(ctx, creds.Email, creds.Password, clientIp)
 	if err != nil {
@@ -108,7 +109,7 @@ func (h *UserHandlerImpl) Profile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.userService.Profile(context.Background(), userContent.Claims.UserID, utils.GetClientIP(r))
+	user, err := h.userService.Profile(context.Background(), userContent.Claims.UserID, utils.GetClientIP(r, config.IsLocal()))
 	if err != nil {
 		switch {
 		case errors.Is(err, domainerrors.ErrUserNotFound):
@@ -138,7 +139,7 @@ func (h *UserHandlerImpl) GetSilentAccesToken(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	accessToken, err := h.userService.GetSilentAccessToken(context.Background(), userContent.Claims.UserID, userContent.Claims.Email, utils.GetClientIP(r))
+	accessToken, err := h.userService.GetSilentAccessToken(context.Background(), userContent.Claims.UserID, userContent.Claims.Email, utils.GetClientIP(r, config.IsLocal()))
 	if err != nil || accessToken == "" {
 		http.Error(w, "Could not get silent access token", http.StatusInternalServerError)
 		return

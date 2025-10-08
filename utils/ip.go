@@ -1,15 +1,14 @@
 package utils
 
 import (
-	"backend-go/config"
 	"log"
 	"net"
 	"net/http"
 	"strings"
 )
 
-func GetClientIP(r *http.Request) string {
-	if config.IsLocal() {
+func GetClientIP(r *http.Request, isLocal bool) string {
+	if isLocal {
 		return "127.0.0.1"
 	}
 

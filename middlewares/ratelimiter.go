@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"backend-go/config"
 	"backend-go/database/redisx"
 	rdsModel "backend-go/models/redis"
 	"backend-go/utils"
@@ -34,7 +35,7 @@ func (rl *RateLimiter) AddRouteLimit(path string, cfg rdsModel.RateLimitConfig) 
 // Token Bucket Algorithm
 func (rl *RateLimiter) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := utils.GetClientIP(r)
+		ip := utils.GetClientIP(r, config.IsLocal())
 		path := r.URL.Path
 		key := "ratelimit:" + ip + ":" + path
 		ctx := context.Background()

@@ -1,39 +1,16 @@
 # backend-go
+Developing the backend with clean architecture/Hexagonal Architecture or layer architecture.
 
-## Process when project was started
-project setup
-``go mod init backend-go``
+# Features
+- JWT authentication
+- Rate Limiter (Token Bucket)
+- Cache Aside strategy
+- Cache Invalidation
 
-install dependencies
-```
-go get github.com/golang-jwt/jwt/v5
-go get github.com/gorilla/mux
-go get go.mongodb.org/mongo-driver/mongo
-go get github.com/joho/godotenv
+## Starting locally
+- Mongodb : ```sudo systemctl start mongod.service```
+- Redis : ```sudo systemctl enable redis-server
+    sudo systemctl start redis-server```
 
-
-```
-
-## Running the project 
-Start mongodb if run locally:
-```sudo systemctl start mongod.service```
-
-Run the program
-```
-    go run .
-    go run main.go //use this main.go than . only
-```
-
-new update------------
-now direct run `go run ./cmd` //to
-    run all files in the cmd file as package name is main
-
-
-
-Redis start
-```
-sudo systemctl enable redis-server
-sudo systemctl start redis-server
-```
-
-Basically a mix of Clean Architecture / Hexagonal Architecture
+## For Running the project locally
+- Run the command directly in terminal :  `go run ./cmd` 
