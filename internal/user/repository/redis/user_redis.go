@@ -3,7 +3,9 @@ package repository
 import (
 	"backend-go/constants"
 	"backend-go/database/redisx"
+	model "backend-go/models"
 	"context"
+	"encoding/json"
 	"log"
 	"time"
 
@@ -14,6 +16,9 @@ type UserRedisRepository interface {
 	StoreToken(ctx context.Context, userID string, refreshToken string, clientIp string) (interface{}, error)
 	GetToken(ctx context.Context, userID string) (*RdsTokenSession, error)
 	DeleteToken(ctx context.Context, userID string) (interface{}, error)
+	SaveUser(ctx context.Context, user model.User) (interface{}, error)
+	GetUser(ctx context.Context, userID string) (*model.User, error)
+	DeleteUser(ctx context.Context, userID string) (interface{}, error)
 	SetBlacklistOfAccessToken(ctx context.Context, userID string, accessToken string, ttlTime time.Duration) (interface{}, error)
 	IsBlacklistedAccessToken(ctx context.Context, userID string, accessToken string) (bool, error)
 }
@@ -87,6 +92,73 @@ func (r *userCacheImpl) DeleteToken(ctx context.Context, userID string) (interfa
 		return nil, rErr
 	}
 	log.Printf("User session deleted from Redis: %s", userID)
+
+	return nil, nil
+}
+
+// method to store user profile
+func (r *userCacheImpl) SaveUser(ctx context.Context, user model.User) (interface{}, error) {
+	key := "userProfile:" + user.ID
+	userData := model.User{
+		ID:        user.ID,
+		Email:     user.Email,
+		Role:      user.Role,
+		Token:     user.Token,
+		IPAddress: user.IPAddress,
+	}
+
+	userStringfy, jErr := json.Marshal(userData)
+	if jErr != nil {
+		log.Printf("Error marshalling user data: %v", jErr)
+		return nil, jErr
+	}
+
+	if rErr := redisx.Rdb.Set(ctx, key, userStringfy, constants.GLOBAL_RATE_LIMITER_TTL).Err(); rErr != nil {
+		log.Printf("Failed to set user profile in Redis: %v", rErr)
+		return nil, rErr
+	}
+
+	return nil, nil
+}
+
+func (r *userCacheImpl) GetUser(ctx context.Context, userID string) (*model.User, error) {
+	key := "userProfile:" + userID
+	user, err := redisx.Rdb.Get(ctx, key).Result()
+	if err == redis.Nil {
+		log.Printf("Key not found in redis: %v", err)
+		return nil, err
+	}
+	if err != nil {
+		log.Printf("Failed to retrieve or scan user profile data: %v", err)
+		return nil, err
+	}
+
+	var jUser model.User
+	if jErr := json.Unmarshal([]byte(user), &jUser); jErr != nil {
+		log.Printf("Error unmarshalling user data: %v", jErr)
+		return nil, jErr
+	}
+
+	return &jUser, nil
+}
+
+func (r *userCacheImpl) DeleteUser(ctx context.Context, userID string) (interface{}, error) {
+	key := "userProfile:" + userID
+	exists, err := redisx.Rdb.Exists(ctx, key).Result()
+	if err != nil {
+		log.Printf("Failed to delete user profile in Redis: %v", err)
+		return nil, err
+	}
+
+	if exists == 0 {
+		return nil, nil // userID does not exist in Redis
+	}
+
+	if rErr := redisx.Rdb.Del(ctx, key).Err(); rErr != nil {
+		log.Printf("Failed to delete user profile in Redis: %v", rErr)
+		return nil, rErr
+	}
+	log.Printf("User profile deleted from Redis: %s", userID)
 
 	return nil, nil
 }

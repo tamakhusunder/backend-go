@@ -25,3 +25,6 @@ const PROFILE_RATE_LIMITER_BURST = 10 // max bucket size
 
 // Blacklist settings
 const BLACKLIST_ACCESS_TOKEN string = "blacklistAcessToken"
+
+// User profile cache settings
+const USER_PROFILE_EXPIRATION time.Duration = 30 * time.Minute // user profile cache expiration time
