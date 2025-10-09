@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"backend-go/config"
 	contextkeys "backend-go/contextKeys"
 	redisRepository "backend-go/internal/user/repository/redis"
 	userType "backend-go/type"
@@ -51,7 +52,7 @@ func RefreshAuthMiddleware(next http.Handler, UserRedisRepo redisRepository.User
 		}
 
 		storedRdxToken, err := UserRedisRepo.GetToken(r.Context(), refreshTokenClaims.UserID)
-		clientIp := utils.GetClientIP(r)
+		clientIp := utils.GetClientIP(r, config.IsLocal())
 		if err != nil || storedRdxToken == nil {
 			log.Printf("Failed to get user session from Redis: %v", err)
 			http.Error(w, "Unauthorized - invalid session", http.StatusUnauthorized)

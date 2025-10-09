@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"time"
 
+	"backend-go/config"
 	contextkeys "backend-go/contextKeys"
 	redisRepository "backend-go/internal/user/repository/redis"
 	userType "backend-go/type"
@@ -67,7 +68,7 @@ func AuthMiddleware(next http.Handler, UserRedisRepo redisRepository.UserRedisRe
 			return
 		}
 
-		clientIp := utils.GetClientIP(r)
+		clientIp := utils.GetClientIP(r, config.IsLocal())
 		if storedRdxToken.IPAddress != clientIp {
 			log.Printf("IP address mismatch: token IP %s, request IP %s", storedRdxToken.IPAddress, clientIp)
 			http.Error(w, "unauthorized access", http.StatusUnauthorized)
